@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Experimental Typeface Debug</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <style>
+      body {
+        font-family: monospace;
+        margin: 0;
+        background: #fafafa;
+      }
+      .header {
+        padding: 20px;
+        background: #fff;
+        border-bottom: 1px solid #ddd;
+      }
+      .canvas-container {
+        display: flex;
+        justify-content: center;
+        padding: 20px;
+      }
+      canvas {
+        max-width: 100%;
+        height: auto;
+        display: block;
+      }
+      .controls {
+        padding: 10px 20px;
+      }
+      .controls label {
+        margin-right: 10px;
+      }
+      .control-group {
+        display: inline-block;
+        margin-right: 20px;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        background: #000;
+      }
+      input[type="range"]::-moz-range-thumb {
+        background: #000;
+      }
+      input[type="range"]::-ms-thumb {
+        background: #000;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <p>
+        <strong>Experimental Type by Marilyn Baker. </strong> Type with your
+        keyboard. Letters A–Z will use random image variations.
+      </p>
+    </div>
+    <div class="controls">
+      <div class="control-group">
+        <label for="size-slider">Size</label>
+        <input type="range" id="size-slider" min="10" max="60" value="10" />
+        <span id="size-value">10</span>px
+      </div>
+
+      <div class="control-group">
+        <label for="leading-slider">Line Height</label>
+        <input
+          type="range"
+          id="leading-slider"
+          min="50"
+          max="1000"
+          value="1000"
+        />
+        <span id="leading-value">1000%</span>
+      </div>
+      <div class="control-group">
+        <label for="spacing-slider">Letter Spacing</label>
+        <input type="range" id="spacing-slider" min="0" max="180" value="140" />
+        <span id="spacing-value">140</span>px
+      </div>
+      <div class="control-group">
+        <button id="clear-btn">Clear</button>
+        <button id="download-btn">Download</button>
+      </div>
+    </div>
+    <!-- close controls -->
+
+    <div
+      class="canvas-container"
+      style="overflow: auto; max-height: calc(100vh - 220px)"
+    ></div>
+
+    <script>
+      let fontVariations = {};
+      let typedText = [];
+      const baseLetterWidth = 60;
+      let fontSize = 10;
+      let letterSpacing = 140;
+      let lineHeightPercent = 1000;
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      let allImagesLoaded = false;
+      let loadedCount = 0;
+
+      function preload() {
+        for (let c of alphabet) {
+          fontVariations[c] = [];
+          for (let i = 1; i <= 5; i++) {
+            let path = `fonts/${c}/${c}_0${i}.png`;
+            loadImage(
+              path,
+              (img) => {
+                fontVariations[c].push(img);
+                loadedCount++;
+                if (loadedCount >= 5) {
+                  allImagesLoaded = true;
+                  console.log("Minimum images loaded — ready to test.");
+                }
+              },
+              () => {
+                console.warn(`Missing image: ${path}`);
+                loadedCount++;
+                if (loadedCount >= 5) {
+                  allImagesLoaded = true;
+                  console.log("Minimum images loaded — ready to test.");
+                }
+              }
+            );
+          }
+        }
+      }
+
+      function setup() {
+        let canvas = createCanvas(windowWidth, windowHeight * 3);
+        canvas.parent(document.querySelector(".canvas-container"));
+        background(255);
+
+        const sizeSlider = document.getElementById("size-slider");
+        const sizeValue = document.getElementById("size-value");
+        sizeSlider.addEventListener("input", () => {
+          fontSize = parseInt(sizeSlider.value);
+          sizeValue.textContent = fontSize;
+          redraw();
+        });
+
+        const spacingSlider = document.getElementById("spacing-slider");
+        const spacingValue = document.getElementById("spacing-value");
+        spacingSlider.addEventListener("input", () => {
+          letterSpacing = parseInt(spacingSlider.value);
+          spacingValue.textContent = letterSpacing;
+          redraw();
+        });
+
+        const leadingSlider = document.getElementById("leading-slider");
+        const leadingValue = document.getElementById("leading-value");
+        leadingSlider.addEventListener("input", () => {
+          lineHeightPercent = parseInt(leadingSlider.value);
+          leadingValue.textContent = lineHeightPercent + "%";
+          redraw();
+        });
+
+        noLoop();
+
+        document.getElementById("clear-btn").addEventListener("click", () => {
+          typedText = [];
+          redraw();
+        });
+
+        document
+          .getElementById("download-btn")
+          .addEventListener("click", () => {
+            saveCanvas("experimental-typeface", "png");
+          });
+      }
+
+      function windowResized() {
+        resizeCanvas(windowWidth, windowHeight - 220);
+        redraw();
+      }
+
+      function draw() {
+        background(255);
+        let x = 50;
+        let y = 100;
+        let spacing = fontSize + letterSpacing;
+
+        for (let item of typedText) {
+          if (item.img) {
+            push();
+            let scaleFactor = fontSize / baseLetterWidth;
+            translate(x, y - fontSize);
+            scale(scaleFactor);
+            image(item.img, 0, 0);
+            pop();
+
+            x += spacing;
+            if (x + spacing > width) {
+              x = 50;
+              y += fontSize * (lineHeightPercent / 100);
+            }
+          } else if (item.char === "\n") {
+            x = 50;
+            y += fontSize * (lineHeightPercent / 100);
+          }
+        }
+      }
+
+      function keyPressed() {
+        if (!allImagesLoaded) {
+          console.log("Images still loading...");
+          return;
+        }
+
+        let char = key.toUpperCase();
+        if (alphabet.includes(char)) {
+          let variations = fontVariations[char];
+          if (variations.length > 0) {
+            let img = random(variations);
+            typedText.push({ char, img });
+          } else {
+            console.warn(`No images loaded yet for ${char}`);
+          }
+        } else if (keyCode === BACKSPACE) {
+          typedText.pop();
+        } else if (keyCode === ENTER) {
+          typedText.push({ char: "\n", img: null });
+        }
+        redraw();
+      }
+    </script>
+  </body>
+</html>
